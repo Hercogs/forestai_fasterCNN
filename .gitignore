@@ -1,0 +1,9 @@
+# Ignore these files and folders
+
+datasets/
+forestai_annotation_data/
+__pycache__/
+.idea/
+
+*.pyc
+*.pyo
