@@ -2,6 +2,7 @@
 
 datasets/
 forestai_annotation_data/
+raw_data_images/
 __pycache__/
 .idea/
 
