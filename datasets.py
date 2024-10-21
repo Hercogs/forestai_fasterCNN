@@ -12,72 +12,50 @@ from utils import server_utils, annotation_utils
 
 # https://github.com/hubert10/fasterrcnn_resnet50_fpn_v2_new_dataset/blob/main/datasets.py
 
-class CustomDataset(torch.utils.data.Dataset):
+class FasterCnnDataset(torch.utils.data.Dataset):
     def __init__(self,
                  dataset_path: str,
-                 annot_format: str,
+                 dataset_subfolder: str,
                  classes: list[int] = None,
                  height: int = 1024,
                  width: int = 1024,
-                 use_train: bool = True,
-                 use_test: bool = False,
-                 use_test_raw: bool = False,
-                 use_val: bool = False,
                  max_dataset_length: int = None,
+                 use_empty_images: bool = False,
                  transforms=None,  # Not implemented yet
                  ):
         """
 
         :param dataset_path:
-        :param annot_format: yoloV5, faster, ...
+        :param dataset_subfolder: option of ["test", "test_raw", "train", "val"]
         :param classes: list of global label ids(keys) to be used in dataset
         :param height: target image height
         :param width: target image width
-        :param use_train: whether to use train images
-        :param use_test: whether to use test images
-        :param use_test_raw: whether to use test_raw
-        :param use_val: whether to use validation images
         :param max_dataset_length:
+        :param use_empty_images: whether to use images with no annotations
         :param transforms:
         """
         self.__dataset_path = dataset_path
-        self.__annot_format = annot_format
-        self.__classes = list(set(annotation_utils.AnnotationLabels.GLOBAL_LABELS.values())) \
-            if not classes else classes
+        self.__dataset_subfolder = dataset_subfolder
+        self.__classes = [] if not classes else classes
         self.__height = height
         self.__width = width
-        self.__use_train = use_train
-        self.__use_test = use_test
-        self.__use_test_raw = use_test_raw
-        self.__use_val = use_val
         self.__max_dataset_length = max_dataset_length
+        self.__use_empty_images = use_empty_images
         self.__transforms = transforms
 
         self.__image_file_type = ".JPG"
         self.__annot_file_type = ".txt"
-        self.__allowed__annot_formats = ["yoloV5", "faster"]
 
         self.__all_images = []
         self.__all_annots = []
 
-        # Check that only 1 source is used
-        if (self.__use_train + self.__use_test + self.__use_val + self.__use_test_raw) != 1:
-            raise Exception(f"Only one source is allowed. Select train, test or validation images")
-        if self.__use_train:
-            images_folder = "train"
-        elif self.__use_test:
-            images_folder = "test"
-        elif self.__use_test_raw:
-            images_folder = "test_raw"
-        elif self.__use_val:
-            images_folder = "val"
-        else:
-            raise Exception("Unknow image location")
-        self.__images_path = os.path.join(self.__dataset_path, images_folder)
+        self.__images_path = os.path.join(self.__dataset_path, "images", self.__dataset_subfolder)
+        self.__labels_path = os.path.join(self.__dataset_path, "labels", self.__dataset_subfolder)
 
-        # CHeck annot format
-        if self.__annot_format not in self.__allowed__annot_formats:
-            raise Exception(f"Selected annotation format '{self.__annot_format}' invalid")
+        if not os.path.exists(self.__images_path):
+            raise Exception(f"Images paths do not exist: {self.__images_path}")
+        if not os.path.exists(self.__labels_path):
+            raise Exception(f"Labels paths do not exist: {self.__labels_path}")
 
         # Remove all annotations and images when no object is present.
         self.__read_and_clean()
@@ -89,23 +67,29 @@ class CustomDataset(torch.utils.data.Dataset):
         self.__all_images.sort(key=lambda x: (int(x.removesuffix(self.__image_file_type))))
 
         for image_name in list(self.__all_images):
-            annot_name = image_name.replace(self.__image_file_type, self.__annot_file_type)
+            if not self.__use_empty_images:
+                annot_name = image_name.replace(self.__image_file_type, self.__annot_file_type)
 
-            # Remove empty images
-            annot_path = os.path.join(self.__images_path, annot_name)
-            if os.path.getsize(annot_path) == 0:
-                self.__all_images.remove(image_name)
-                continue
+                # Remove empty images
+                annot_path = os.path.join(self.__labels_path, annot_name)
+                if os.path.getsize(annot_path) == 0:
+                    self.__all_images.remove(image_name)
+                    continue
 
-            # Remove images without target classes
-            annot_data = np.loadtxt(
-                annot_path,
-                dtype=int, ndmin=2, delimiter=","
-            )
-            classes = annot_data[:, 0]
-            valid_annots = [cl in self.__classes for cl in classes]
-            if not any(valid_annots):
-                self.__all_images.remove(image_name)
+                if not self.__classes:
+                    # Use all classes
+                    continue
+
+                # Remove images without target classes
+                annot_data = np.loadtxt(
+                    annot_path,
+                    dtype=float, ndmin=2, delimiter=" "
+                )
+                classes = annot_data[:, 0].astype(int)
+
+                valid_annots = [cl in self.__classes for cl in classes]
+                if not any(valid_annots):
+                    self.__all_images.remove(image_name)
 
         if self.__max_dataset_length and len(self) > self.__max_dataset_length:
             self.__all_images = self.__all_images[:self.__max_dataset_length]
@@ -117,43 +101,59 @@ class CustomDataset(torch.utils.data.Dataset):
         image_name = self.__all_images[idx]
         annot_name = image_name.replace(self.__image_file_type, self.__annot_file_type)
 
-        img = cv2.imread(os.path.join(self.__images_path, image_name))
+        image_path = os.path.join(self.__images_path, image_name)
+        label_path = os.path.join(self.__labels_path, annot_name)
+
+
+        img = cv2.imread(image_path)
         # Convert BGR to RGB
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         height, width, _ = img.shape
 
-        annot_data = np.loadtxt(
-            os.path.join(self.__images_path, annot_name),
-            dtype=int, ndmin=2, delimiter=","
-        )
-
-        classes = annot_data[:, 0]
-        valid_annots = [cl in self.__classes for cl in classes]
-        not_valid_annots_index = [i for i, x in enumerate(valid_annots) if not x]
-        annot_data = np.delete(annot_data, not_valid_annots_index, axis=0)
-
-        labels = annot_data[:, 0]
-        annotations = annot_data[:, 1:5]
-
         if height != self.__height or width != self.__width:
-            print("Scaling not implemented yet, contact with developer!")
-            # raise Exception("Scaling not implemented yet, contact with developer")
+            #print("Scaling not implemented yet, contact with developer!")
+            raise Exception("Scaling not implemented yet, contact with developer")
             # Resize image
             # Scale annotations
 
-        if self.__classes != list(set(annotation_utils.AnnotationLabels.GLOBAL_LABELS.values())):
-            # This means that not all classes are selected, but for fasterCNN labels should be [1, ..]
-            include_class_array = np.array(self.__classes).reshape(1, -1)
-            for i, (label, annot) in enumerate(zip(labels, annotations)):
-                labels[i] = self.__classes.index(label) + 1
+        annot_data = np.loadtxt(
+            label_path,
+            dtype=float, ndmin=2, delimiter=" "
+        )
 
-        # print(f"labels: {labels}")
-        # print(f"anns: {annotations}")
-        # plt.imshow(img)
-        # plt.show()
+        """
+        It is expected that dataset contains classes [0, 1, ... n]
+        Faster CNN expects classes [1, 2, ... n+1]
+        """
 
-        target = {"labels": torch.tensor(labels, dtype=torch.int64),
-                  "boxes": torch.tensor(annotations, dtype=torch.float)}
+        annot_data_updated = np.empty((0, 5))
+
+        for i, row in enumerate(np.copy(annot_data)):
+            label = row[0]
+            annotation = row[1:5]
+
+            row_new = np.zeros(5)
+
+            if self.__classes:
+                if label not in self.__classes:
+                    continue
+                # Update label
+                row_new[0] = self.__classes.index(label) + 1
+            else:
+                # Update label
+                row_new[0] = label + 1
+
+            # Convert yoloV5 to fasterCNN format
+            # [class_id center_x center_y width height] -> [class_id, x_min, y_min, x_max, y_max]
+            row_new[1] = annotation[0] * width - annotation[2] * width / 2
+            row_new[2] = annotation[1] * height - annotation[3] * height / 2
+            row_new[3] = annotation[0] * width + annotation[2] * width / 2
+            row_new[4] = annotation[1] * height + annotation[3] * height / 2
+
+            annot_data_updated = np.append(annot_data_updated, row_new.reshape(1, 5), axis=0)
+
+        target = {"labels": torch.tensor(annot_data_updated[:, 0], dtype=torch.int64),
+                  "boxes": torch.tensor(annot_data_updated[:, 1:5], dtype=torch.float)}
         return t.ToTensor()(img), target
 
 #TODO: collate functions
@@ -166,21 +166,21 @@ def collate_fn(batch):
 
 
 if __name__ == "__main__":
-    dataset = CustomDataset(
-        dataset_path="datasets/2024-09-18 11:32:03.928673",
-        annot_format="faster",
-        classes=[2],
-        use_train = True,
-        use_test = False,
-        use_val = False,
-        max_dataset_length=None
+    dataset = FasterCnnDataset(
+        dataset_path="/home/hercogs/Desktop/Droni/git_repos/forestai_dataset_generation/datasets/priede_test",
+        dataset_subfolder="train",
+        classes=None,
+        max_dataset_length=None,
+        use_empty_images=False
     )
 
-    print(len(dataset))
+    print(f"Length of dataset: {len(dataset)}")
 
     img, labels = dataset[1]
     img_orig = (img.permute(1, 2, 0).cpu().detach().numpy() * 255).astype("uint8")
     img_orig = np.ascontiguousarray(img_orig, dtype=np.uint8)
+
+    print(f"Labels: {labels}")
 
     orig_boxes = labels["boxes"]
     for box in orig_boxes:
@@ -192,6 +192,9 @@ if __name__ == "__main__":
 
     plt.imshow(img_orig)
     plt.show()
+
+
+
 
     #
     # # print(labels["label"])

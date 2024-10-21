@@ -1,4 +1,4 @@
-from datasets import CustomDataset, collate_fn
+from datasets import FasterCnnDataset, collate_fn
 from model import create_model
 
 import numpy as np
@@ -32,21 +32,19 @@ if __name__ == "__main__":
     device = "cuda" # cpu
     torch.cuda.empty_cache()
 
-    cmi = CustomModelDetect("./saved_models/egle_9.pth")
+    cmi = CustomModelDetect("/home/hercogs/Desktop/Droni/git_repos/faster_cnn/runs/train/exp6/w1.pth")
 
-    dataset = CustomDataset(
-        dataset_path="datasets/2024-09-18 11:32:03.928673",
-        annot_format="faster",
-        classes=[2],
-        use_train = True,
-        use_test = False,
-        use_val = False,
-        max_dataset_length=None
+    train_dataset = FasterCnnDataset(
+        dataset_path="/home/hercogs/Desktop/Droni/git_repos/forestai_dataset_generation/datasets/priede_test",
+        dataset_subfolder="test",
+        classes=None,
+        max_dataset_length=None,
+        use_empty_images=False
     )
 
     for ii in range(3):
 
-        img, labels = dataset[ii]
+        img, labels = train_dataset[ii]
 
         img_orig = (img.permute(1, 2, 0).cpu().detach().numpy() * 255)
         img_orig = np.ascontiguousarray(img_orig, dtype=np.uint8)

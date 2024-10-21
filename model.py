@@ -3,7 +3,7 @@ import torchvision
 
 def create_model(
         num_classes, # including background class
-        trainable_backbone_layers=None,
+        trainable_backbone_layers=5,
         pretrained=True):
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn_v2(
         weights=torchvision.models.detection.FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT,

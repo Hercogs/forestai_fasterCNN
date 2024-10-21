@@ -1,8 +1,5 @@
 # Ignore these files and folders
-
-datasets/
-forestai_annotation_data/
-raw_data_images/
+runs/
 __pycache__/
 .idea/
 
