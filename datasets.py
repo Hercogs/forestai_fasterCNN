@@ -7,9 +7,6 @@ import matplotlib.pyplot as plt
 import torch, torchvision
 import torchvision.transforms as t
 
-
-from utils import server_utils, annotation_utils
-
 # https://github.com/hubert10/fasterrcnn_resnet50_fpn_v2_new_dataset/blob/main/datasets.py
 
 class FasterCnnDataset(torch.utils.data.Dataset):
