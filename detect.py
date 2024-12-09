@@ -1,4 +1,4 @@
-from datasets import CustomDataset, collate_fn
+from datasets import FasterCnnDataset, collate_fn
 from model import create_model
 
 import numpy as np
@@ -29,24 +29,28 @@ if __name__ == "__main__":
     #TODO: do label mapping
     #TODO: add argparser
 
+    output_dir = "./yolo_vs_faster"
+    yolo_weights = "./weights/priede_10_05_24_4070546.pt"
+    faster_weights = "./weights/priede_faster_epoch50.pth"
+    image_source = "/home/hercogs/Desktop/Droni/git_repos/forestai_datasets_manager/datasets/priede_16_10_24/images/test_raw"  # Single image or folder
+    annotations_source = "/home/hercogs/Desktop/Droni/git_repos/forestai_datasets_manager/datasets/priede_16_10_24/labels/test_raw"  # Single image or folder
+
     device = "cuda" # cpu
     torch.cuda.empty_cache()
 
-    cmi = CustomModelDetect("./saved_models/egle_9.pth")
+    cmi = CustomModelDetect("/home/hercogs/Desktop/Droni/git_repos/forestai_fasterCNN/run1/train/exp2/last.pth")
 
-    dataset = CustomDataset(
-        dataset_path="datasets/2024-09-18 11:32:03.928673",
-        annot_format="faster",
-        classes=[2],
-        use_train = True,
-        use_test = False,
-        use_val = False,
-        max_dataset_length=None
+    train_dataset = FasterCnnDataset(
+        dataset_path="/home/hercogs/Desktop/Droni/git_repos/forestai_datasets_manager/datasets/egle_16_10_24",
+        dataset_subfolder="test",
+        classes=None,
+        max_dataset_length=None,
+        use_empty_images=False
     )
 
     for ii in range(3):
 
-        img, labels = dataset[ii]
+        img, labels = train_dataset[ii]
 
         img_orig = (img.permute(1, 2, 0).cpu().detach().numpy() * 255)
         img_orig = np.ascontiguousarray(img_orig, dtype=np.uint8)

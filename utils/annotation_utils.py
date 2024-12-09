@@ -46,7 +46,7 @@ class AnnotationLabels:
 
         remap_dict = {}
         for key, value in annotation_labels.items():
-            if not key in global_keys or not value in global_values:
+            if not value in global_values:
                 raise Exception(f"Key '{key}' or value '{value}' not found in global labels")
             remap_dict[key] = AnnotationLabels.GLOBAL_LABELS[value]
         return dict(remap_dict)
@@ -74,9 +74,11 @@ class AnnotationData:
         self.test_label_id = self.get_label_id(self.test_label_name, self.label_dict)
         self.images_path = None  # Location of unzipped images for this annotation job
 
-        # print(f"Annotation: {self.name}\n"\
-        #       f"Labels: {self.label_dict}\n"\
-        #       f"remap dic: {self.label_remap_dict}\n\n")
+        self.kadastrs = self.yaml_config["info"][0]["kadastrs"]
+        self.kvartals = self.yaml_config["info"][0]["kvartals"]
+        self.nogabals = self.yaml_config["info"][0]["nogabals"]
+        self.uav = self.yaml_config["info"][0]["uav"]
+        self.datums = self.yaml_config["info"][0]["datums"]
 
     def get_label_dict(self):
         labels = {}
@@ -109,12 +111,13 @@ class AnnotationManager:
     """
     This class is responsible for processing annotations from github repo.
     """
-    def __init__(self, annotation_repo_path, selected_annotations: list[str] = None):
+    def __init__(self, annotation_repo_path, annotation_job_names: list[str] = None):
         """
         :param annotation_repo_path: location of annotation repo path
-        :param selected_annotations: list of strings with annotation
+        :param annotation_job_names: list of strings with annotation
         """
         self._annotation_data_path = os.path.join(annotation_repo_path, "annotation_data")
+        self.__annotation_job_names = annotation_job_names
 
         self._tmp_file_path = os.path.join(os.getcwd(), "tmp_file_path")
         if not os.path.exists(self._tmp_file_path):
@@ -125,7 +128,10 @@ class AnnotationManager:
         self._available_annotations = [os.path.splitext(os.path.basename(f))[0] for f in self._zip_files]
 
         self._selected_annotations = []  # Storage for selected annotations - AnnotationData object
-        self.select_annotations(selected_annotations)
+
+        if not self.__annotation_job_names:
+            self.__annotation_job_names = self._available_annotations
+        self.select_annotations(self.__annotation_job_names)
 
     # def __exit__(self):
     #     if os.path.exists(self._tmp_file_path):
@@ -182,7 +188,7 @@ class AnnotationManager:
             )
             self._selected_annotations.append(annotation_data)
 
-    def list_selected_annotations(self):
+    def get_selected_annotations(self):
         return self._selected_annotations
 
 

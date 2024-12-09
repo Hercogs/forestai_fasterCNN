@@ -6,7 +6,7 @@ import numpy as np
 
 def main(dataset_name, number_of_images):
     dataset_folder = os.path.join("datasets", dataset_name)
-    dataset_train = os.path.join(dataset_folder, "train")
+    dataset_train = os.path.join(dataset_folder, "labels", "train")
     i = 0
 
     print(dataset_train)
@@ -18,12 +18,21 @@ def main(dataset_name, number_of_images):
                 continue
             if os.path.getsize(file_path) == 0:
                 continue
-            image_path = file_path.replace(".txt", ".JPG")
+            image_path = file_path.replace(".txt", ".JPG").replace("labels", "images")
             print(image_path)
             img = cv.imread(image_path)
-            ann = np.loadtxt(file_path, dtype=int, delimiter=",", ndmin=2)
+            w, h, _ = img.shape
+            ann = np.loadtxt(file_path, dtype=float, delimiter=" ", ndmin=2)
             for a in ann:
-                img = cv.rectangle(img, (a[1], a[2]), (a[3], a[4]), (0, 255, 0), 5)
+                mid_x = int(a[1] * w)
+                mid_y = int(a[2] * h)
+                width = int(a[3] * w)
+                height = int(a[4] * h)
+
+                img = cv.rectangle(img,
+                                   (int(mid_x - (width/2)), int(mid_y - (height / 2))),
+                                   (int(mid_x + (width/2)), int(mid_y + (height / 2))),
+                                   (0, 255, 0), 5)
 
             img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
             #
@@ -36,5 +45,5 @@ def main(dataset_name, number_of_images):
 
 
 if __name__ == "__main__":
-    dataset = "2024-09-18 11:32:03.928673"
+    dataset = "priede_v5"
     main(dataset, 3)

@@ -1,0 +1,28 @@
+version: "3"
+
+services:
+  faster_cnn:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: faster_cnn:latest
+    container_name: faster_cnn
+    stdin_open: true # docker run -i
+    tty: true        # docker run -ts
+
+    deploy: # add gpu capabilities
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+    volumes:
+      - /home/hercogs/Desktop/Droni/git_repos/forestai_datasets_manager/datasets/priede_16_10_24:/app/priede_16_10_24
+      - /home/hercogs/Desktop/Droni/git_repos/runs:/app/runs
+
+    command: ["python", "train.py", "--dataset", "/app/priede_16_10_24", "--dataset-size", "10", "--epochs", "5", "--batch-size", "1"]
+    #command: ["ls"]
+
+# docker-compose run faster_cnn bash
